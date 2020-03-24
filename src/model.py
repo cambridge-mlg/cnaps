@@ -5,7 +5,6 @@ from utils import split_first_dim_linear
 from config_networks import ConfigureNetworks
 from set_encoder import mean_pooling
 
-
 NUM_SAMPLES=1
 
 
@@ -23,7 +22,8 @@ class Cnaps(nn.Module):
         self.device = device
         self.use_two_gpus = use_two_gpus
         networks = ConfigureNetworks(pretrained_resnet_path=self.args.pretrained_resnet_path,
-                                     feature_adaptation=self.args.feature_adaptation)
+                                     feature_adaptation=self.args.feature_adaptation,
+                                     batch_normalization=args.batch_normalization)
         self.set_encoder = networks.get_encoder()
         self.classifier_adaptation_network = networks.get_classifier_adaptation()
         self.classifier = networks.get_classifier()
@@ -31,6 +31,7 @@ class Cnaps(nn.Module):
         self.feature_adaptation_network = networks.get_feature_adaptation()
         self.task_representation = None
         self.class_representations = OrderedDict()  # Dictionary mapping class label (integer) to encoded representation
+        self.total_iterations = args.training_iterations
 
     def forward(self, context_images, context_labels, target_images):
         """
@@ -46,10 +47,10 @@ class Cnaps(nn.Module):
 
         # get the parameters for the linear classifier.
         self._build_class_reps(context_features, context_labels)
-        classifier_params = self._get_classifier_params(context_features, context_labels)
+        classifier_params = self._get_classifier_params()
 
         # classify
-        sample_logits = self.classifier(target_features, classifier_params, NUM_SAMPLES)
+        sample_logits = self.classifier(target_features, classifier_params)
         self.class_representations.clear()
 
         # this adds back extra first dimension for num_samples
@@ -69,25 +70,31 @@ class Cnaps(nn.Module):
             if self.args.feature_adaptation == 'film+ar':
                 task_representation_1 = self.task_representation.cuda(1)
                 # Get adaptation params by passing context set through the adaptation networks
+                self.set_batch_norm_mode(True)
                 self.feature_extractor_params = self.feature_adaptation_network(context_images_1, task_representation_1)
             else:
                 task_representation_1 = self.task_representation.cuda(1)
                 # Get adaptation params by passing context set through the adaptation networks
                 self.feature_extractor_params = self.feature_adaptation_network(task_representation_1)
             # Given adaptation parameters for task, conditional forward pass through the adapted feature extractor
+            self.set_batch_norm_mode(True)
             context_features_1 = self.feature_extractor(context_images_1, self.feature_extractor_params)
             context_features = context_features_1.cuda(0)
+            self.set_batch_norm_mode(False)
             target_features_1 = self.feature_extractor(target_images_1, self.feature_extractor_params)
             target_features = target_features_1.cuda(0)
         else:
             if self.args.feature_adaptation == 'film+ar':
                 # Get adaptation params by passing context set through the adaptation networks
+                self.set_batch_norm_mode(True)
                 self.feature_extractor_params = self.feature_adaptation_network(context_images, self.task_representation)
             else:
                 # Get adaptation params by passing context set through the adaptation networks
                 self.feature_extractor_params = self.feature_adaptation_network(self.task_representation)
             # Given adaptation parameters for task, conditional forward pass through the adapted feature extractor
+            self.set_batch_norm_mode(True)
             context_features = self.feature_extractor(context_images, self.feature_extractor_params)
+            self.set_batch_norm_mode(False)
             target_features = self.feature_extractor(target_images, self.feature_extractor_params)
 
         return context_features, target_features
@@ -105,17 +112,45 @@ class Cnaps(nn.Module):
             class_rep = mean_pooling(class_features)
             self.class_representations[c.item()] = class_rep
 
-    def _get_classifier_params(self, train_features, train_labels):
+    def _get_classifier_params(self):
+        """
+        Processes the class representations and generated the linear classifier weights and biases.
+        :return: Linear classifier weights and biases.
+        """
         classifier_params = self.classifier_adaptation_network(self.class_representations)
         return classifier_params
 
     @staticmethod
     def _extract_class_indices(labels, which_class):
+        """
+        Helper method to extract the indices of elements which have the specified label.
+        :param labels: (torch.tensor) Labels of the context set.
+        :param which_class: Label for which indices are extracted.
+        :return: (torch.tensor) Indices in the form of a mask that indicate the locations of the specified label.
+        """
         class_mask = torch.eq(labels, which_class)  # binary mask of labels equal to which_class
         class_mask_indices = torch.nonzero(class_mask)  # indices of labels equal to which class
         return torch.reshape(class_mask_indices, (-1,))  # reshape to be a 1D vector
 
     def distribute_model(self):
+        """
+        Moves the feature extractor and feature adaptation network to a second GPU.
+        :return: Nothing
+        """
         self.feature_extractor.cuda(1)
         self.feature_adaptation_network.cuda(1)
 
+    def set_batch_norm_mode(self, context):
+        """
+        Controls the batch norm mode in the feature extractor.
+        :param context: Set to true ehen processing the context set and False when processing the target set.
+        :return: Nothing
+        """
+        if self.args.batch_normalization == "basic":
+            self.feature_extractor.eval()  # always in eval mode
+        else:
+            # "task_norm-i" - respect context flag, regardless of state
+            if context:
+                self.feature_extractor.train()  # use train when processing the context set
+            else:
+                self.feature_extractor.eval()  # use eval when processing the target set

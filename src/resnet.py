@@ -35,10 +35,9 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-
-import torch.nn as nn
 import torch
-
+import torch.nn as nn
+from normalization_layers import TaskNormI
 
 __all__ = ['ResNet', 'resnet18']
 
@@ -57,13 +56,13 @@ def conv1x1(in_planes, out_planes, stride=1):
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
+    def __init__(self, inplanes, planes, bn_fn, stride=1, downsample=None):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = nn.BatchNorm2d(planes)
+        self.bn1 = bn_fn(planes)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
-        self.bn2 = nn.BatchNorm2d(planes)
+        self.bn2 = bn_fn(planes)
         self.downsample = downsample
         self.stride = stride
 
@@ -95,13 +94,13 @@ class BasicBlockFilm(nn.Module):
     """
     expansion = 1
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
+    def __init__(self, inplanes, planes, bn_fn, stride=1, downsample=None):
         super(BasicBlockFilm, self).__init__()
         self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = nn.BatchNorm2d(planes)
+        self.bn1 = bn_fn(planes)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
-        self.bn2 = nn.BatchNorm2d(planes)
+        self.bn2 = bn_fn(planes)
         self.downsample = downsample
         self.stride = stride
 
@@ -143,42 +142,40 @@ class BasicBlockFilm(nn.Module):
 
 
 class ResNet(nn.Module):
-
-    def __init__(self, block, layers):
+    def __init__(self, block, layers, bn_fn):
         super(ResNet, self).__init__()
         self.initial_pool = False
         inplanes = self.inplanes = 64
-        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=5, stride=2, padding=1,
-                               bias=False)
-        self.bn1 = nn.BatchNorm2d(self.inplanes)
+        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=5, stride=2, padding=1, bias=False)
+        self.bn1 = bn_fn(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, inplanes, layers[0])
-        self.layer2 = self._make_layer(block, inplanes * 2, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, inplanes * 4, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, inplanes * 8, layers[3], stride=2)
+        self.layer1 = self._make_layer(block, inplanes, layers[0], bn_fn)
+        self.layer2 = self._make_layer(block, inplanes * 2, layers[1], bn_fn, stride=2)
+        self.layer3 = self._make_layer(block, inplanes * 4, layers[2], bn_fn, stride=2)
+        self.layer4 = self._make_layer(block, inplanes * 8, layers[3], bn_fn, stride=2)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, nn.BatchNorm2d):
+            elif isinstance(m, nn.BatchNorm2d) or isinstance(m, TaskNormI):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-    def _make_layer(self, block, planes, blocks, stride=1):
+    def _make_layer(self, block, planes, blocks, bn_fn, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
                 conv1x1(self.inplanes, planes * block.expansion, stride),
-                nn.BatchNorm2d(planes * block.expansion),
+                bn_fn(planes * block.expansion),
             )
 
         layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
+        layers.append(block(self.inplanes, planes, bn_fn, stride, downsample))
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
+            layers.append(block(self.inplanes, planes, bn_fn))
 
         return nn.Sequential(*layers)
 
@@ -226,8 +223,8 @@ class FilmResNet(ResNet):
     ResNet object, and works with identical logic.
     """
 
-    def __init__(self, block, layers):
-        ResNet.__init__(self, block, layers)
+    def __init__(self, block, layers, bn_fn):
+        ResNet.__init__(self, block, layers, bn_fn)
         self.layers = layers
 
     def forward(self, x, param_dict):
@@ -264,24 +261,40 @@ class FilmResNet(ResNet):
         return x
 
 
-def resnet18(pretrained=False, pretrained_model_path=None, **kwargs):
+def get_normalization_layer(batch_normalization):
+    if batch_normalization == "task_norm-i":
+        nl = TaskNormI
+    else:
+        nl = nn.BatchNorm2d
+
+    return nl
+
+
+def resnet18(pretrained=False, pretrained_model_path=None, batch_normalization='basic', **kwargs):
     """
         Constructs a ResNet-18 model.
     """
-    model = ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
+    nl = get_normalization_layer(batch_normalization)
+
+    model = ResNet(BasicBlock, [2, 2, 2, 2], nl, **kwargs)
+
     if pretrained:
         ckpt_dict = torch.load(pretrained_model_path)
         model.load_state_dict(ckpt_dict['state_dict'])
     return model
 
 
-def film_resnet18(pretrained=False, pretrained_model_path=None, **kwargs):
+def film_resnet18(pretrained=False, pretrained_model_path=None, batch_normalization="eval", **kwargs):
     """
         Constructs a FiLM adapted ResNet-18 model.
     """
+    nl = get_normalization_layer(batch_normalization)
 
-    model = FilmResNet(BasicBlockFilm, [2, 2, 2, 2], **kwargs)
+    model = FilmResNet(BasicBlockFilm, [2, 2, 2, 2], nl, **kwargs)
+
     if pretrained:
         ckpt_dict = torch.load(pretrained_model_path)
         model.load_state_dict(ckpt_dict['state_dict'])
+
     return model
+

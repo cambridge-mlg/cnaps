@@ -145,19 +145,21 @@ class FilmLayerNetwork(nn.Module):
 
         # Generate the required layers / regularization parameters, and collect them in ModuleLists and ParameterLists
         for _ in range(self.num_blocks):
-            regularizer = torch.nn.init.normal_(torch.empty(num_maps), 0, 0.001)
-
             self.gamma1_processors.append(self._make_layer(num_maps))
-            self.gamma1_regularizers.append(torch.nn.Parameter(regularizer, requires_grad=True))
+            self.gamma1_regularizers.append(torch.nn.Parameter(torch.nn.init.normal_(torch.empty(num_maps), 0, 0.001),
+                                                               requires_grad=True))
 
             self.beta1_processors.append(self._make_layer(num_maps))
-            self.beta1_regularizers.append(torch.nn.Parameter(regularizer, requires_grad=True))
+            self.beta1_regularizers.append(torch.nn.Parameter(torch.nn.init.normal_(torch.empty(num_maps), 0, 0.001),
+                                                              requires_grad=True))
 
             self.gamma2_processors.append(self._make_layer(num_maps))
-            self.gamma2_regularizers.append(torch.nn.Parameter(regularizer, requires_grad=True))
+            self.gamma2_regularizers.append(torch.nn.Parameter(torch.nn.init.normal_(torch.empty(num_maps), 0, 0.001),
+                                                               requires_grad=True))
 
             self.beta2_processors.append(self._make_layer(num_maps))
-            self.beta2_regularizers.append(torch.nn.Parameter(regularizer, requires_grad=True))
+            self.beta2_regularizers.append(torch.nn.Parameter(torch.nn.init.normal_(torch.empty(num_maps), 0, 0.001),
+                                                              requires_grad=True))
 
     @staticmethod
     def _make_layer(size):
@@ -373,19 +375,21 @@ class FilmArLayerNetwork(nn.Module):
 
         # Loop over blocks. For each block, collect necessary parameters and regularizers
         for _ in range(self.num_blocks):
-            regularizer = torch.nn.init.normal_(torch.empty(num_maps), 0, 0.001)
-
             self.gamma1_processors.append(self._make_layer(self.num_maps + self.z_g_dim, num_maps))
-            self.gamma1_regularizers.append(torch.nn.Parameter(regularizer, requires_grad=True))
+            self.gamma1_regularizers.append(torch.nn.Parameter(torch.nn.init.normal_(torch.empty(num_maps), 0, 0.001),
+                                                               requires_grad=True))
 
             self.beta1_processors.append(self._make_layer(self.num_maps + self.z_g_dim, num_maps))
-            self.beta1_regularizers.append(torch.nn.Parameter(regularizer, requires_grad=True))
+            self.beta1_regularizers.append(torch.nn.Parameter(torch.nn.init.normal_(torch.empty(num_maps), 0, 0.001),
+                                                              requires_grad=True))
 
             self.gamma2_processors.append(self._make_layer(self.num_maps + self.z_g_dim, num_maps))
-            self.gamma2_regularizers.append(torch.nn.Parameter(regularizer, requires_grad=True))
+            self.gamma2_regularizers.append(torch.nn.Parameter(torch.nn.init.normal_(torch.empty(num_maps), 0, 0.001),
+                                                               requires_grad=True))
 
             self.beta2_processors.append(self._make_layer(self.num_maps + self.z_g_dim, num_maps))
-            self.beta2_regularizers.append(torch.nn.Parameter(regularizer, requires_grad=True))
+            self.beta2_regularizers.append(torch.nn.Parameter(torch.nn.init.normal_(torch.empty(num_maps), 0, 0.001),
+                                                              requires_grad=True))
 
     def get_shared_layers(self):
         """

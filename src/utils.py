@@ -1,8 +1,9 @@
 import torch
 import torch.nn.functional as F
 import os
-from datetime import datetime
 import math
+from enum import Enum
+import sys
 
 
 class ValidationAccuracies:
@@ -43,29 +44,57 @@ class ValidationAccuracies:
                                                                     accuracy_dict[dataset]["confidence"]))
         print_and_log(logfile, "")  # add a blank line
 
+    def get_current_best_accuracy_dict(self):
+        return self.current_best_accuracy_dict
+
+
+def verify_checkpoint_dir(checkpoint_dir, resume, test_mode):
+    if resume:  # verify that the checkpoint directory and file exists
+        if not os.path.exists(checkpoint_dir):
+            print("Can't resume for checkpoint. Checkpoint directory ({}) does not exist.".format(checkpoint_dir), flush=True)
+            sys.exit()
+
+        checkpoint_file = os.path.join(checkpoint_dir, 'checkpoint.pt')
+        if not os.path.isfile(checkpoint_file):
+            print("Can't resume for checkpoint. Checkpoint file ({}) does not exist.".format(checkpoint_file), flush=True)
+            sys.exit()
+    elif test_mode:
+        if not os.path.exists(checkpoint_dir):
+            print("Can't test. Checkpoint directory ({}) does not exist.".format(checkpoint_dir), flush=True)
+            sys.exit()
+    else:
+        if os.path.exists(checkpoint_dir):
+            print("Checkpoint directory ({}) already exits.".format(checkpoint_dir), flush=True)
+            print("If starting a new training run, specify a directory that does not already exist.", flush=True)
+            print("If you want to resume a training run, specify the -r option on the command line.", flush=True)
+            sys.exit()
+
 
 def print_and_log(log_file, message):
     """
-    Helper function to print to the screen and the log file.
+    Helper function to print to the screen and the cnaps_layer_log.txt file.
     """
-    print(message)
+    print(message, flush=True)
     log_file.write(message + '\n')
 
 
-def get_log_files(checkpoint_dir):
+def get_log_files(checkpoint_dir, resume, test_mode):
     """
     Function that takes a path to a checkpoint directory and returns a reference to a logfile and paths to the
     fully trained model and the model with the best validation score.
     """
-    unique_checkpoint_dir = os.path.join(checkpoint_dir, datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
-    if not os.path.exists(unique_checkpoint_dir):
-        os.makedirs(unique_checkpoint_dir)
-    checkpoint_path_validation = os.path.join(unique_checkpoint_dir, 'best_validation.pt')
-    checkpoint_path_final = os.path.join(unique_checkpoint_dir, 'fully_trained.pt')
-    logfile_path = os.path.join(unique_checkpoint_dir, 'log')
-    logfile = open(logfile_path, "w")
+    verify_checkpoint_dir(checkpoint_dir, resume, test_mode)
+    if not test_mode and not resume:
+        os.makedirs(checkpoint_dir)
+    checkpoint_path_validation = os.path.join(checkpoint_dir, 'best_validation.pt')
+    checkpoint_path_final = os.path.join(checkpoint_dir, 'fully_trained.pt')
+    logfile_path = os.path.join(checkpoint_dir, 'log.txt')
+    if os.path.isfile(logfile_path):
+        logfile = open(logfile_path, "a", buffering=1)
+    else:
+        logfile = open(logfile_path, "w", buffering=1)
 
-    return unique_checkpoint_dir, logfile, checkpoint_path_validation, checkpoint_path_final
+    return checkpoint_dir, logfile, checkpoint_path_validation, checkpoint_path_final
 
 
 def stack_first_dim(x):
@@ -126,7 +155,7 @@ def aggregate_accuracy(test_logits_sample, test_labels):
     return torch.mean(torch.eq(test_labels, torch.argmax(averaged_predictions, dim=-1)).float())
 
 
-def linear_classifier(x, param_dict, num_samples):
+def linear_classifier(x, param_dict):
     """
     Classifier.
     """
