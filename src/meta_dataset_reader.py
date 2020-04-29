@@ -180,7 +180,7 @@ class SingleDatasetReader:
         return iterator.get_next()
 
     def _get_task(self, next_task, session):
-        episode = session.run(next_task)
+        (episode, source_id) = session.run(next_task)
         task_dict = {
             'context_images': episode[0],
             'context_labels': episode[1],
