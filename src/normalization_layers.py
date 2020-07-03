@@ -92,11 +92,6 @@ class TaskNormBase(NormalizationLayer):
         :param num_features: number of channels in the 2D convolutional layer
         """
         super(TaskNormBase, self).__init__(num_features)
-        # Variables to store the context moments to use for normalizing the target.
-        self.context_batch_mean = torch.zeros((1, num_features, 1, 1), requires_grad=True)
-        self.context_batch_var = torch.ones((1, num_features, 1, 1), requires_grad=True)
-        # Variable to save the context size.
-        self.context_size = 0
         self.sigmoid = torch.nn.Sigmoid()
 
     def register_extra_weights(self):
@@ -106,12 +101,23 @@ class TaskNormBase(NormalizationLayer):
         :return: Nothing
         """
         device = self.weight.device
+
         # Initialize and register the learned parameters 'a' (SCALE) and 'b' (OFFSET)
         # for calculating alpha as a function of context size.
         a = torch.Tensor([0.0]).to(device)
         b = torch.Tensor([0.0]).to(device)
         self.register_parameter(name='a', param=torch.nn.Parameter(a, requires_grad=True))
         self.register_parameter(name='b', param=torch.nn.Parameter(b, requires_grad=True))
+
+        # Variables to store the context moments to use for normalizing the target.
+        self.register_buffer(name='batch_mean',
+                             tensor=torch.zeros((1, self.num_features, 1, 1), requires_grad=True, device=device))
+        self.register_buffer(name='batch_var',
+                             tensor=torch.ones((1, self.num_features, 1, 1), requires_grad=True, device=device))
+
+        # Variable to save the context size.
+        self.register_buffer(name='context_size',
+                             tensor=torch.zeros((1), requires_grad=False, device=device))
 
     def _get_augment_moment_fn(self):
         """
@@ -133,7 +139,7 @@ class TaskNormBase(NormalizationLayer):
                                                                    self._get_augment_moment_fn())
             self.context_batch_mean = batch_mean
             self.context_batch_var = batch_var
-            self.context_size = (x.size())[0]
+            self.context_size = torch.full_like(self.context_size, x.size()[0])
         else:  # compute the pooled moments for the target
             alpha = self.sigmoid(self.a * self.context_size + self.b)  # compute alpha with saved context size
             pooled_mean, pooled_var = self._compute_pooled_moments(x, alpha, self.context_batch_mean,

@@ -25,7 +25,7 @@ python run_cnaps.py --feature_adaptation no_adaptation --data_path <path to dire
 
 CNAPs using FiLM adaptation and TaskNorm, meta-training on all datasets
 -----------------------------------------------------------------------
-python run_cnaps.py --feature_adaptation film -i 60000 -lr 0.001 --batch_normalization task_norm-i
+python run_cnaps.py --feature_adaptation film -i 40000 -lr 0.001 --batch_normalization task_norm-i
                     --data_path <path to directory containing Meta-Dataset records>
 
 - Note that when using Meta-Dataset and auto-regressive FiLM adaptation or FiLM adaptation with TaskNorm
