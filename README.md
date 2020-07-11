@@ -96,10 +96,11 @@ If you use this code, please cite our [CNAPs](https://arxiv.org/abs/1906.07697) 
   publisher  = {Curran Associates, Inc.},
 }
 
-@article{bronskill2020tasknorm,
-  title={TaskNorm: Rethinking Batch Normalization for Meta-Learning},
-  author={Bronskill, John and Gordon, Jonathan and Requeima, James and Nowozin, Sebastian and Turner, Richard E},
-  journal={arXiv preprint arXiv:2003.03284},
-  year={2020}
+@incollection{bronskill2020tasknorm,
+ title = {TaskNorm: Rethinking Batch Normalization for Meta-Learning},
+ author = {Bronskill, John and Gordon, Jonathan and Requeima, James and Nowozin, Sebastian and Turner, Richard},
+ booktitle = {Proceedings of Machine Learning and Systems 2020},
+ pages = {4683--4694},
+ year = {2020}
 }
 ```
