@@ -48,9 +48,7 @@ from normalization_layers import TaskNormI
 from utils import print_and_log, get_log_files, ValidationAccuracies, loss, aggregate_accuracy, verify_checkpoint_dir
 from model import Cnaps
 from meta_dataset_reader import MetaDatasetReader, SingleDatasetReader
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Quiet TensorFlow warnings
-import tensorflow as tf
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)  # Quiet TensorFlow warnings
+
 
 NUM_VALIDATION_TASKS = 200
 NUM_TEST_TASKS = 600
@@ -169,56 +167,53 @@ class Learner:
         return args
 
     def run(self):
-        config = tf.compat.v1.ConfigProto()
-        config.gpu_options.allow_growth = True
-        with tf.compat.v1.Session(config=config) as session:
-            if self.args.mode == 'train' or self.args.mode == 'train_test':
-                train_accuracies = []
-                losses = []
-                total_iterations = self.args.training_iterations
-                for iteration in range(self.start_iteration, total_iterations):
-                    torch.set_grad_enabled(True)
-                    task_dict = self.dataset.get_train_task(session)
-                    task_loss, task_accuracy = self.train_task(task_dict)
-                    train_accuracies.append(task_accuracy)
-                    losses.append(task_loss)
+        if self.args.mode == 'train' or self.args.mode == 'train_test':
+            train_accuracies = []
+            losses = []
+            total_iterations = self.args.training_iterations
+            for iteration in range(self.start_iteration, total_iterations):
+                torch.set_grad_enabled(True)
+                task_dict = self.dataset.get_train_task()
+                task_loss, task_accuracy = self.train_task(task_dict)
+                train_accuracies.append(task_accuracy)
+                losses.append(task_loss)
 
-                    # optimize
-                    if ((iteration + 1) % self.args.tasks_per_batch == 0) or (iteration == (total_iterations - 1)):
-                        self.optimizer.step()
-                        self.optimizer.zero_grad()
+                # optimize
+                if ((iteration + 1) % self.args.tasks_per_batch == 0) or (iteration == (total_iterations - 1)):
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
 
-                    if (iteration + 1) % PRINT_FREQUENCY == 0:
-                        # print training stats
-                        print_and_log(self.logfile,'Task [{}/{}], Train Loss: {:.7f}, Train Accuracy: {:.7f}'
-                                      .format(iteration + 1, total_iterations, torch.Tensor(losses).mean().item(),
-                                              torch.Tensor(train_accuracies).mean().item()))
-                        train_accuracies = []
-                        losses = []
+                if (iteration + 1) % PRINT_FREQUENCY == 0:
+                    # print training stats
+                    print_and_log(self.logfile,'Task [{}/{}], Train Loss: {:.7f}, Train Accuracy: {:.7f}'
+                                  .format(iteration + 1, total_iterations, torch.Tensor(losses).mean().item(),
+                                          torch.Tensor(train_accuracies).mean().item()))
+                    train_accuracies = []
+                    losses = []
 
-                    if ((iteration + 1) % self.args.val_freq == 0) and (iteration + 1) != total_iterations:
-                        # validate
-                        accuracy_dict = self.validate(session)
-                        self.validation_accuracies.print(self.logfile, accuracy_dict)
-                        # save the model if validation is the best so far
-                        if self.validation_accuracies.is_better(accuracy_dict):
-                            self.validation_accuracies.replace(accuracy_dict)
-                            torch.save(self.model.state_dict(), self.checkpoint_path_validation)
-                            print_and_log(self.logfile, 'Best validation model was updated.')
-                            print_and_log(self.logfile, '')
-                        self.save_checkpoint(iteration + 1)
+                if ((iteration + 1) % self.args.val_freq == 0) and (iteration + 1) != total_iterations:
+                    # validate
+                    accuracy_dict = self.validate()
+                    self.validation_accuracies.print(self.logfile, accuracy_dict)
+                    # save the model if validation is the best so far
+                    if self.validation_accuracies.is_better(accuracy_dict):
+                        self.validation_accuracies.replace(accuracy_dict)
+                        torch.save(self.model.state_dict(), self.checkpoint_path_validation)
+                        print_and_log(self.logfile, 'Best validation model was updated.')
+                        print_and_log(self.logfile, '')
+                    self.save_checkpoint(iteration + 1)
 
-                # save the final model
-                torch.save(self.model.state_dict(), self.checkpoint_path_final)
+            # save the final model
+            torch.save(self.model.state_dict(), self.checkpoint_path_final)
 
-            if self.args.mode == 'train_test':
-                self.test(self.checkpoint_path_final, session)
-                self.test(self.checkpoint_path_validation, session)
+        if self.args.mode == 'train_test':
+            self.test(self.checkpoint_path_final)
+            self.test(self.checkpoint_path_validation)
 
-            if self.args.mode == 'test':
-                self.test(self.args.test_model_path, session)
+        if self.args.mode == 'test':
+            self.test(self.args.test_model_path)
 
-            self.logfile.close()
+        self.logfile.close()
 
     def train_task(self, task_dict):
         context_images, target_images, context_labels, target_labels = self.prepare_task(task_dict)
@@ -238,13 +233,13 @@ class Learner:
 
         return task_loss, task_accuracy
 
-    def validate(self, session):
+    def validate(self):
         with torch.no_grad():
             accuracy_dict ={}
             for item in self.validation_set:
                 accuracies = []
                 for _ in range(NUM_VALIDATION_TASKS):
-                    task_dict = self.dataset.get_validation_task(item, session)
+                    task_dict = self.dataset.get_validation_task(item)
                     context_images, target_images, context_labels, target_labels = self.prepare_task(task_dict)
                     target_logits = self.model(context_images, context_labels, target_images)
                     accuracy = self.accuracy_fn(target_logits, target_labels)
@@ -258,7 +253,7 @@ class Learner:
 
         return accuracy_dict
 
-    def test(self, path, session):
+    def test(self, path):
         print_and_log(self.logfile, "")  # add a blank line
         print_and_log(self.logfile, 'Testing model {0:}: '.format(path))
         self.model = self.init_model()
@@ -268,7 +263,7 @@ class Learner:
             for item in self.test_set:
                 accuracies = []
                 for _ in range(NUM_TEST_TASKS):
-                    task_dict = self.dataset.get_test_task(item, session)
+                    task_dict = self.dataset.get_test_task(item)
                     context_images, target_images, context_labels, target_labels = self.prepare_task(task_dict)
                     target_logits = self.model(context_images, context_labels, target_images)
                     accuracy = self.accuracy_fn(target_logits, target_labels)

@@ -9,7 +9,9 @@ The code has been authored by: John Bronskill, Jonathan Gordon, and James Reqeim
 This code requires the following:
 * Python 3.5 or greater
 * PyTorch 1.0 or greater
-* TensorFlow 1.14 or greater
+* TensorFlow 1.15 or greater
+
+This code has been recently verified on PyTorch 1.7 and TensorFlow 2.3. 
 
 ## GPU Requirements
 * To train or test a CNAPs model with auto-regressive FiLM adaptation on Meta-Dataset, 2 GPUs with 16GB or more memory

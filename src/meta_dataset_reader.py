@@ -21,6 +21,8 @@ class MetaDatasetReader:
         self.train_dataset_next_task = None
         self.validation_set_dict = {}
         self.test_set_dict = {}
+        tf.compat.v1.disable_eager_execution()
+        self.session = tf.compat.v1.Session()
         gin.parse_config_file('./meta_dataset_config.gin')
 
         if mode == 'train' or mode == 'train_test':
@@ -92,8 +94,8 @@ class MetaDatasetReader:
         iterator = single_source_pipeline.make_one_shot_iterator()
         return iterator.get_next()
 
-    def _get_task(self, next_task, session):
-        (episode, source_id) = session.run(next_task)
+    def _get_task(self, next_task):
+        (episode, source_id) = self.session.run(next_task)
         task_dict = {
             'context_images': episode[0],
             'context_labels': episode[1],
@@ -102,14 +104,14 @@ class MetaDatasetReader:
             }
         return task_dict
 
-    def get_train_task(self, session):
-        return self._get_task(self.train_dataset_next_task, session)
+    def get_train_task(self):
+        return self._get_task(self.train_dataset_next_task)
 
-    def get_validation_task(self, item, session):
-        return self._get_task(self.validation_set_dict[item], session)
+    def get_validation_task(self, item):
+        return self._get_task(self.validation_set_dict[item])
 
-    def get_test_task(self, item, session):
-        return self._get_task(self.test_set_dict[item], session)
+    def get_test_task(self, item):
+        return self._get_task(self.test_set_dict[item])
 
     def _get_train_episode_description(self, max_way_train, max_support_train):
         return config.EpisodeDescriptionConfig(
@@ -124,7 +126,9 @@ class MetaDatasetReader:
             min_log_weight=-0.69314718055994529, # np.cnaps_layer_log.txt(0.5)
             max_log_weight=0.69314718055994529, # np.cnaps_layer_log.txt(2)
             ignore_dag_ontology=False,
-            ignore_bilevel_ontology=False
+            ignore_bilevel_ontology=False,
+            ignore_hierarchy_probability=0.0,
+            simclr_episode_fraction=0.0
         )
 
     def _get_test_episode_description(self, max_way_test, max_support_test):
@@ -140,7 +144,9 @@ class MetaDatasetReader:
             min_log_weight=-0.69314718055994529, # np.cnaps_layer_log.txt(0.5)
             max_log_weight=0.69314718055994529, # np.cnaps_layer_log.txt(2)
             ignore_dag_ontology=False,
-            ignore_bilevel_ontology=False
+            ignore_bilevel_ontology=False,
+            ignore_hierarchy_probability=0.0,
+            simclr_episode_fraction=0.0
         )
 
 
@@ -181,8 +187,8 @@ class SingleDatasetReader:
         iterator = single_source_pipeline.make_one_shot_iterator()
         return iterator.get_next()
 
-    def _get_task(self, next_task, session):
-        (episode, source_id) = session.run(next_task)
+    def _get_task(self, next_task):
+        (episode, source_id) = self.session.run(next_task)
         task_dict = {
             'context_images': episode[0],
             'context_labels': episode[1],
@@ -191,11 +197,11 @@ class SingleDatasetReader:
             }
         return task_dict
 
-    def get_train_task(self, session):
-        return self._get_task(self.train_next_task, session)
+    def get_train_task(self):
+        return self._get_task(self.train_next_task)
 
-    def get_validation_task(self, item, session):
-        return self._get_task(self.validation_next_task, session)
+    def get_validation_task(self, item):
+        return self._get_task(self.validation_next_task)
 
-    def get_test_task(self, item, session):
-        return self._get_task(self.test_next_task, session)
+    def get_test_task(self, item):
+        return self._get_task(self.test_next_task)

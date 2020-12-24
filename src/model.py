@@ -129,7 +129,7 @@ class Cnaps(nn.Module):
         :return: (torch.tensor) Indices in the form of a mask that indicate the locations of the specified label.
         """
         class_mask = torch.eq(labels, which_class)  # binary mask of labels equal to which_class
-        class_mask_indices = torch.nonzero(class_mask)  # indices of labels equal to which class
+        class_mask_indices = torch.nonzero(class_mask, as_tuple=False)  # indices of labels equal to which class
         return torch.reshape(class_mask_indices, (-1,))  # reshape to be a 1D vector
 
     def distribute_model(self):
