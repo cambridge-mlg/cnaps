@@ -59,28 +59,32 @@ To train and test CNAPs on Meta-Dataset:
 of the file.
 
 ## Expected Results
-Below are the results extracted from our papers. The results will vary from run to run due by a percent or two up or 
-down due to the fact that the Meta-Dataset reader generates different tasks each run and the CNAPs networks have random
-sets of initial parameters. The FiLM + TaskNorm configuration consistently yields the best results and trains in much
-less time than the other configurations.
+The FiLM + TaskNorm configuration consistently yields the best results and trains in much
+less time than the other configurations. A meta-trained FiLM + TaskNorm-i model is included
+in the models folder which produced the results shown below. The model was trained for 40,000
+iterations on two 16GB GPUs. Note that these results differ from those published in our paper
+as they now fix the shuffle buffer bug described in meta-dataset
+[issue #54](https://github.com/google-research/meta-dataset/issues/54). In particular, the results
+for the Traffic Signs dataset are considerable worse. However, the results for other datasets are
+comparable (some slightly better, some slightly worse).
 
-**Models trained on all datasets**
+**Model trained on all datasets**
 
-| Dataset       | No Adaptation | FiLM         | FiLM + AR     | FiLM + TaskNorm |
-| ---           | ---           | ---          | ---           | ---             |
-| ILSVRC        | 43.8±1.0      | **51.3±1.0** | **52.3±1.0**  | **50.6±1.1** |
-| Omniglot      | 60.1±1.3      | 88.0±0.7     | 88.4±0.7      | **90.7±0.6** |
-| Aircraft      | 53.0±0.9      | 76.8±0.8     | 80.5±0.6      | **83.8±0.6** |
-| Birds         | 55.7±1.0      | 71.4±0.9     | 72.2±0.9      | **74.6±0.8** |
-| Textures      | 60.5±0.8      | **62.5±0.7** | 58.3±0.7      | **62.1±0.7** |
-| Quick Draw    | 58.1±1.0      | 71.9±0.8     | 72.5±0.8      | **74.8±0.7** |
-| Fungi         | 28.6±0.9      | 46.0±1.1     | 47.4±1.0      | **48.7±1.0** |
-| VGG Flower    | 75.3±0.7      | **89.2±0.5** | 86.0±0.5      | **89.6±0.5** |
-| Traffic Signs | 55.0±0.9      | 60.1±0.9     | 60.2±0.9      | **67.0±0.7** |
-| MSCOCO        | 41.2±1.0      | **42.0±1.0** | **42.6±1.1**  | **43.4±1.0** |
-| MNIST         | 76.0±0.8      | 88.6±0.5     | **92.7±0.4**  | **92.3±0.4** |
-| CIFAR10       | 61.5±0.7      | 60.0±0.8     | 61.5±0.7      | **69.3±0.8** |
-| CIFAR100      | 44.8±1.0      | 48.1±1.0     | 50.1±1.0      | **54.6±1.1** |
+| Dataset       | FiLM + TaskNorm |
+| ---           | ---      | 
+| ILSVRC        | 50.8±1.1 |
+| Omniglot      | 91.7±0.5 |
+| Aircraft      | 83.7±0.6 |
+| Birds         | 73.6±0.9 |
+| Textures      | 59.5±0.7 |
+| Quick Draw    | 74.7±0.8 |
+| Fungi         | 50.2±1.1 |
+| VGG Flower    | 88.9±0.5 |
+| Traffic Signs | 56.5±1.1 |
+| MSCOCO        | 39.4±1.0 |
+| MNIST         | 92.3±0.4 |
+| CIFAR10       | 68.5±0.9 |
+| CIFAR100      | 56.1±1.1 |
 
 ## Contact
 To ask questions or report issues, please open an issue on the issues tracker.
