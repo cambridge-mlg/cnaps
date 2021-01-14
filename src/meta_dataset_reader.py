@@ -160,10 +160,12 @@ class SingleDatasetReader:
         self.train_next_task = None
         self.validation_next_task = None
         self.test_next_task = None
+        tf.compat.v1.disable_eager_execution()
+        self.session = tf.compat.v1.Session()
         gin.parse_config_file('./meta_dataset_config.gin')
 
-        fixed_way_shot_train = config.EpisodeDescriptionConfig(num_ways=way, num_support=shot, num_query=query_train)
-        fixed_way_shot_test = config.EpisodeDescriptionConfig(num_ways=way, num_support=shot, num_query=query_test)
+        fixed_way_shot_train = self._get_train_episode_description(num_ways=way, num_support=shot, num_query=query_train)
+        fixed_way_shot_test = self._get_test_episode_description(num_ways=way, num_support=shot, num_query=query_test)
 
         if mode == 'train' or mode == 'train_test':
             self.train_next_task = self._init_dataset(dataset, learning_spec.Split.TRAIN, fixed_way_shot_train)
@@ -182,7 +184,8 @@ class SingleDatasetReader:
             use_bilevel_ontology=False,
             split=split,
             episode_descr_config=episode_description,
-            image_size=84)
+            image_size=84,
+            shuffle_buffer_size=1000)
 
         iterator = single_source_pipeline.make_one_shot_iterator()
         return iterator.get_next()
@@ -205,3 +208,40 @@ class SingleDatasetReader:
 
     def get_test_task(self, item):
         return self._get_task(self.test_next_task)
+
+    def _get_train_episode_description(self, num_ways, num_support, num_query):
+        return config.EpisodeDescriptionConfig(
+            num_ways=num_ways,
+            num_support=num_support,
+            num_query=num_query,
+            min_ways=5,
+            max_ways_upper_bound=50,
+            max_num_query=10,
+            max_support_set_size=500,
+            max_support_size_contrib_per_class=100,
+            min_log_weight=-0.69314718055994529, # np.cnaps_layer_log.txt(0.5)
+            max_log_weight=0.69314718055994529, # np.cnaps_layer_log.txt(2)
+            ignore_dag_ontology=False,
+            ignore_bilevel_ontology=False,
+            ignore_hierarchy_probability=0.0,
+            simclr_episode_fraction=0.0
+        )
+
+    def _get_test_episode_description(self, num_ways, num_support, num_query):
+        return config.EpisodeDescriptionConfig(
+            num_ways=num_ways,
+            num_support=num_support,
+            num_query=num_query,
+            min_ways=5,
+            max_ways_upper_bound=50,
+            max_num_query=10,
+            max_support_set_size=500,
+            max_support_size_contrib_per_class=100,
+            min_log_weight=-0.69314718055994529, # np.cnaps_layer_log.txt(0.5)
+            max_log_weight=0.69314718055994529, # np.cnaps_layer_log.txt(2)
+            ignore_dag_ontology=False,
+            ignore_bilevel_ontology=False,
+            ignore_hierarchy_probability=0.0,
+            simclr_episode_fraction=0.0
+        )
+
